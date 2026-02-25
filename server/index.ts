@@ -18,8 +18,18 @@ import List from './models/List.js';
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-app.use(cors());
+app.use(cors({
+  origin: process.env.VERCEL
+    ? ['https://tim-llo.vercel.app']
+    : '*',
+}));
 app.use(express.json());
+
+// Ensure DB is connected before each request (serverless cold starts)
+app.use(async (_req, _res, next) => {
+  await connectDB();
+  next();
+});
 
 // Auth routes (public)
 app.use('/api/auth', authRoutes);
@@ -119,17 +129,23 @@ app.use('/api', cardRoutes);
 
 app.use(errorHandler);
 
-connectDB().then(async () => {
-  // Backfill slugs for existing boards that don't have one
-  const boardsWithoutSlug = await Board.find({ $or: [{ slug: null }, { slug: '' }, { slug: { $exists: false } }] });
-  for (const board of boardsWithoutSlug) {
-    await board.save(); // triggers the pre-save hook which generates the slug
-  }
-  if (boardsWithoutSlug.length > 0) {
-    console.log(`Generated slugs for ${boardsWithoutSlug.length} existing board(s)`);
-  }
+// Only start the server when NOT on Vercel (local dev)
+if (!process.env.VERCEL) {
+  connectDB().then(async () => {
+    // Backfill slugs for existing boards that don't have one
+    const boardsWithoutSlug = await Board.find({ $or: [{ slug: null }, { slug: '' }, { slug: { $exists: false } }] });
+    for (const board of boardsWithoutSlug) {
+      await board.save(); // triggers the pre-save hook which generates the slug
+    }
+    if (boardsWithoutSlug.length > 0) {
+      console.log(`Generated slugs for ${boardsWithoutSlug.length} existing board(s)`);
+    }
 
-  app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+    app.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
+    });
   });
-});
+}
+
+// Export for Vercel serverless
+export default app;
