@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import express from 'express';
+import mongoose from 'mongoose';
 import cors from 'cors';
 import { connectDB } from './config/db.js';
 import { errorHandler } from './middleware/errorHandler.js';
@@ -55,7 +56,7 @@ app.put('/api/card-reorder', async (req, res) => {
       ops.push({
         updateOne: {
           filter: { _id: destCardIds[i] },
-          update: { $set: { position: i, listId: destListId } },
+          update: { $set: { position: i, listId: new mongoose.Types.ObjectId(destListId) } },
         },
       });
     }
